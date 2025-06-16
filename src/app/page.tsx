@@ -4,7 +4,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { Loader2, Languages } from 'lucide-react';
+import { Loader2, Languages, MessageSquare, UserCircle } from 'lucide-react'; // Added MessageSquare and UserCircle
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import Image from 'next/image';
