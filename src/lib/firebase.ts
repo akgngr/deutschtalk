@@ -14,20 +14,22 @@ const appId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID;
 const measurementId = process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID;
 
 const placeholderSuffix = "_PLACEHOLDER";
-const simplePlaceholderApiKey = "YOUR_API_KEY";
-const newProminentPlaceholderPrefix = "!!!_REPLACE_WITH_YOUR_ACTUAL_";
+const simplePlaceholderApiKey = "YOUR_API_KEY"; // Older placeholder
+const newProminentPlaceholderPrefix = "!!!_REPLACE_WITH_YOUR_ACTUAL_"; // New placeholder
 
 if (
-  !apiKey ||
+  !apiKey || // Catches undefined, null, or empty string ""
+  apiKey.trim() === "" || // Catches whitespace-only strings
   apiKey.endsWith(placeholderSuffix) ||
   apiKey === simplePlaceholderApiKey ||
   apiKey.startsWith(newProminentPlaceholderPrefix) ||
   apiKey === "FIREBASE_API_KEY_PLACEHOLDER" // Legacy check
 ) {
   throw new Error(
-    'Firebase API Key is missing or is a placeholder (e.g., "!!!_REPLACE_WITH_YOUR_ACTUAL_FIREBASE_API_KEY_!!!"). ' +
+    'Firebase API Key is missing, a placeholder (e.g., "!!!_REPLACE_WITH_YOUR_ACTUAL_FIREBASE_API_KEY_!!!"), or invalid. ' +
     'Please ensure NEXT_PUBLIC_FIREBASE_API_KEY is set with your actual Firebase API key in the .env file. ' +
-    'You can find this in your Firebase project settings: Project settings > General > Your apps > Web app SDK snippet.'
+    'You can find this in your Firebase project settings: Project settings > General > Your apps > Web app SDK snippet. ' +
+    'After updating .env, you may need to restart your Next.js development server.'
   );
 }
 
