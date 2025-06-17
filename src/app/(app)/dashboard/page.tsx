@@ -102,6 +102,19 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col items-center justify-center space-y-8 py-12">
+      {user && (
+        <Card className="w-full max-w-lg shadow-md mb-6">
+          <CardHeader>
+            <CardTitle className="text-xl">User Object (Debug)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <pre className="text-xs bg-muted p-2 rounded-md overflow-x-auto">
+              {JSON.stringify(user, null, 2)}
+            </pre>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="w-full max-w-lg shadow-xl text-center">
         <CardHeader>
           <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
