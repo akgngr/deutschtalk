@@ -8,12 +8,12 @@ import type { RegisterFormData } from '@/lib/validators';
 import { RegisterSchema } from '@/lib/validators';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { signUpWithEmail, signInWithGoogle } from '@/app/actions/auth';
 import { useToast } from '@/hooks/use-toast';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/use-auth';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -31,8 +31,10 @@ const GoogleIcon = () => (
 export function RegisterForm() {
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [registerSuccess, setRegisterSuccess] = useState(false);
 
   const form = useForm<RegisterFormData>({
     resolver: zodResolver(RegisterSchema),
@@ -44,13 +46,20 @@ export function RegisterForm() {
     },
   });
 
+  useEffect(() => {
+    if (registerSuccess && user) {
+      router.push('/dashboard');
+    }
+  }, [registerSuccess, user, router]);
+
   async function onSubmit(data: RegisterFormData) {
     setIsLoading(true);
+    setRegisterSuccess(false);
     const result = await signUpWithEmail(data);
     setIsLoading(false);
     if (result.success) {
-      toast({ title: "Registration Successful", description: "Welcome to DeutschTalk! Please log in." });
-      router.push('/dashboard'); // Or '/login' if email verification is needed
+      toast({ title: "Registration Successful", description: "Welcome to DeutschTalk!" });
+      setRegisterSuccess(true); 
     } else {
       toast({ title: "Registration Failed", description: result.error || "An unknown error occurred.", variant: "destructive" });
     }
@@ -58,11 +67,12 @@ export function RegisterForm() {
   
   async function handleGoogleSignIn() {
     setIsGoogleLoading(true);
+    setRegisterSuccess(false);
     const result = await signInWithGoogle();
     setIsGoogleLoading(false);
     if (result.success) {
       toast({ title: "Google Sign-Up Successful", description: "Welcome to DeutschTalk!" });
-      router.push('/dashboard');
+      setRegisterSuccess(true);
     } else {
       toast({ title: "Google Sign-Up Failed", description: result.error || "Could not sign up with Google.", variant: "destructive" });
     }
@@ -129,7 +139,7 @@ export function RegisterForm() {
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" className="w-full" disabled={isLoading || isGoogleLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Create Account
             </Button>
@@ -145,7 +155,7 @@ export function RegisterForm() {
             </span>
           </div>
         </div>
-        <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isGoogleLoading}>
+        <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isGoogleLoading || isLoading}>
           {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon />}
           <span className="ml-2">Sign up with Google</span>
         </Button>
