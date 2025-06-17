@@ -53,11 +53,12 @@ export const FirebaseAuthProvider = ({ children }: { children: ReactNode }) => {
               fcmTokens: data.fcmTokens || [],
             });
           } else {
+            console.warn(`UserProfile document not found in Firestore for UID: ${firebaseUser.uid}. UserProfile will be null.`);
             setUserProfile(null); 
           }
           setLoading(false); // Profile loaded (or confirmed not to exist)
         }, (error) => {
-          console.error("Error fetching user profile:", error);
+          console.error("Error fetching user profile from Firestore:", error);
           setUserProfile(null);
           setLoading(false);
         });
