@@ -18,12 +18,12 @@ const simplePlaceholderApiKey = "YOUR_API_KEY"; // Older placeholder
 const newProminentPlaceholderPrefix = "!!!_REPLACE_WITH_YOUR_ACTUAL_"; // New placeholder
 
 if (
-  !apiKey || // Catches undefined, null, or empty string ""
-  apiKey.trim() === "" || // Catches whitespace-only strings
+  !apiKey || 
+  apiKey.trim() === "" || 
   apiKey.endsWith(placeholderSuffix) ||
   apiKey === simplePlaceholderApiKey ||
   apiKey.startsWith(newProminentPlaceholderPrefix) ||
-  apiKey === "FIREBASE_API_KEY_PLACEHOLDER" // Legacy check
+  apiKey === "FIREBASE_API_KEY_PLACEHOLDER"
 ) {
   throw new Error(
     'Firebase API Key is missing, a placeholder (e.g., "!!!_REPLACE_WITH_YOUR_ACTUAL_FIREBASE_API_KEY_!!!"), or invalid. ' +
@@ -40,7 +40,7 @@ const firebaseConfig = {
   storageBucket,
   messagingSenderId,
   appId,
-  measurementId, // Optional
+  measurementId, 
 };
 
 let app: FirebaseApp;
@@ -55,31 +55,40 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
-// const analytics = getAnalytics(app); // Optional
 
-// Setup emulators if running in development
-// Important: Ensure these are not run in production
 if (process.env.NODE_ENV === 'development') {
-  // Check if running in a browser environment before connecting client-side emulators
-  if (typeof window !== 'undefined') {
-    // Check if emulators are already connected to avoid re-connecting during HMR.
-    // Firebase SDK doesn't offer a direct way to check, so this is a simple guard.
-    // A more robust solution might involve a global flag.
-    // @ts-ignore // Accessing private _isInitialized property for a pragmatic check
-    if (!auth.emulatorConfig) { 
-      try {
-        console.log("Connecting to Firebase Emulators for development...");
+  // Ensure this block runs for both client and server-side evaluations in dev.
+  // The Firebase SDK methods for connecting to emulators are typically idempotent.
+  // Using a global flag to prevent multiple connection logs from HMR on client or multiple server action calls.
+  try {
+    // @ts-ignore - Check if a global flag is set to avoid re-logging connection attempts excessively
+    if (!globalThis._firebaseEmulatorsConnectedAttempted) {
+      console.log("Attempting to connect to Firebase Emulators for development...");
+      
+      // @ts-ignore - Check internal emulatorConfig to see if already connected by this instance
+      if (!auth.emulatorConfig) {
         connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
-        connectFirestoreEmulator(db, 'localhost', 8080);
-        connectStorageEmulator(storage, 'localhost', 9199);
-        console.log("Firebase Emulators connected successfully.");
-      } catch (error) {
-        console.warn("Error connecting to Firebase emulators. They might already be connected or not running.", error);
       }
+      // @ts-ignore - _settings can indicate emulator connection for Firestore
+      if (!db['_settings'] || !db['_settings'].host?.includes('localhost')) {
+         connectFirestoreEmulator(db, 'localhost', 8080);
+      }
+      // @ts-ignore - Check internal _protocol or a similar heuristic for Storage
+      if (!storage['_protocol']?.includes('http:')) { // Live uses https, emulator typically http
+        connectStorageEmulator(storage, 'localhost', 9199);
+      }
+      console.log("Firebase Emulators connection attempts complete. If emulators are running, they should be connected.");
+      // @ts-ignore - Set the global flag
+      globalThis._firebaseEmulatorsConnectedAttempted = true;
     }
+  } catch (error) {
+    console.warn(
+        "Warning: Error attempting to connect to Firebase emulators. " +
+        "This might be expected if emulators are not running. " +
+        "The application will attempt to connect to live Firebase services. Details:",
+        error
+    );
   }
 }
 
-
 export { app, auth, db, storage, googleProvider };
-

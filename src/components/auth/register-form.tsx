@@ -10,12 +10,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { signUpWithEmail, signInWithGoogle } from '@/app/actions/auth';
+import { signUpWithEmail, handleGoogleUser } from '@/app/actions/auth'; // Updated import
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { auth, googleProvider } from '@/lib/firebase'; // Import auth and googleProvider for client-side Google Sign-In
+import { signInWithPopup, type UserCredential } from 'firebase/auth'; // Import signInWithPopup
 
 // Simple SVG for Google icon
 const GoogleIcon = () => (
@@ -31,7 +33,7 @@ const GoogleIcon = () => (
 export function RegisterForm() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user } = useAuth(); // useAuth will be updated by FirebaseAuthProvider on successful sign-up
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [registerSuccess, setRegisterSuccess] = useState(false);
@@ -47,7 +49,7 @@ export function RegisterForm() {
   });
 
   useEffect(() => {
-    if (registerSuccess && user) {
+    if (registerSuccess && user) { // user comes from useAuth() context
       router.push('/dashboard');
     }
   }, [registerSuccess, user, router]);
@@ -59,7 +61,7 @@ export function RegisterForm() {
     setIsLoading(false);
     if (result.success) {
       toast({ title: "Registration Successful", description: "Welcome to DeutschTalk!" });
-      setRegisterSuccess(true); 
+      setRegisterSuccess(true); // This will trigger useEffect when user context updates
     } else {
       toast({ title: "Registration Failed", description: result.error || "An unknown error occurred.", variant: "destructive" });
     }
@@ -68,13 +70,37 @@ export function RegisterForm() {
   async function handleGoogleSignIn() {
     setIsGoogleLoading(true);
     setRegisterSuccess(false);
-    const result = await signInWithGoogle();
-    setIsGoogleLoading(false);
-    if (result.success) {
-      toast({ title: "Google Sign-Up Successful", description: "Welcome to DeutschTalk!" });
-      setRegisterSuccess(true);
-    } else {
-      toast({ title: "Google Sign-Up Failed", description: result.error || "Could not sign up with Google.", variant: "destructive" });
+    try {
+      const result: UserCredential = await signInWithPopup(auth, googleProvider);
+      const firebaseUser = result.user;
+
+      const profileResult = await handleGoogleUser({
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        displayName: firebaseUser.displayName,
+        photoURL: firebaseUser.photoURL,
+      });
+      
+      setIsGoogleLoading(false);
+      if (profileResult.success) {
+        toast({ title: "Google Sign-Up Successful", description: "Welcome to DeutschTalk!" });
+        setRegisterSuccess(true); // This will trigger useEffect when user context updates
+      } else {
+        toast({ title: "Google Sign-Up Failed", description: profileResult.error || "Could not complete Google Sign-Up.", variant: "destructive" });
+      }
+    } catch (error: any) {
+      setIsGoogleLoading(false);
+      let errorMessage = "Could not sign up with Google.";
+      if (error.code === 'auth/popup-closed-by-user') {
+        errorMessage = "Sign-up popup closed. Please try again.";
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        errorMessage = "Sign-up popup request cancelled. Please try again.";
+      } else if (error.code === 'auth/popup-blocked') {
+        errorMessage = "Sign-up popup was blocked by the browser. Please allow popups for this site.";
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
+        errorMessage = "An account already exists with this email using a different sign-in method.";
+      }
+      toast({ title: "Google Sign-Up Failed", description: error.message || errorMessage, variant: "destructive" });
     }
   }
 

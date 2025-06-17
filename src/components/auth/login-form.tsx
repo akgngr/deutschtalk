@@ -10,12 +10,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { signInWithEmail, signInWithGoogle } from '@/app/actions/auth';
+import { signInWithEmail, handleGoogleUser } from '@/app/actions/auth'; // Updated import
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { auth, googleProvider } from '@/lib/firebase'; // Import auth and googleProvider for client-side Google Sign-In
+import { signInWithPopup, type UserCredential } from 'firebase/auth'; // Import signInWithPopup
 
 // Simple SVG for Google icon
 const GoogleIcon = () => (
@@ -32,7 +34,7 @@ const GoogleIcon = () => (
 export function LoginForm() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user } = useAuth(); // useAuth will be updated by FirebaseAuthProvider on successful sign-in
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
@@ -46,7 +48,7 @@ export function LoginForm() {
   });
 
   useEffect(() => {
-    if (loginSuccess && user) {
+    if (loginSuccess && user) { // user comes from useAuth() context
       router.push('/dashboard');
     }
   }, [loginSuccess, user, router]);
@@ -58,7 +60,7 @@ export function LoginForm() {
     setIsLoading(false);
     if (result.success) {
       toast({ title: "Login Successful", description: "Welcome back!" });
-      setLoginSuccess(true);
+      setLoginSuccess(true); // This will trigger useEffect when user context updates
     } else {
       toast({ title: "Login Failed", description: result.error || "An unknown error occurred.", variant: "destructive" });
     }
@@ -67,13 +69,39 @@ export function LoginForm() {
   async function handleGoogleSignIn() {
     setIsGoogleLoading(true);
     setLoginSuccess(false);
-    const result = await signInWithGoogle();
-    setIsGoogleLoading(false);
-    if (result.success) {
-      toast({ title: "Google Sign-In Successful", description: "Welcome!" });
-      setLoginSuccess(true);
-    } else {
-      toast({ title: "Google Sign-In Failed", description: result.error || "Could not sign in with Google.", variant: "destructive" });
+    try {
+      const result: UserCredential = await signInWithPopup(auth, googleProvider);
+      const firebaseUser = result.user;
+      
+      // Call the server action to ensure profile exists and get it (which might trigger context update)
+      const profileResult = await handleGoogleUser({
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        displayName: firebaseUser.displayName,
+        photoURL: firebaseUser.photoURL,
+      });
+
+      setIsGoogleLoading(false);
+      if (profileResult.success) {
+        toast({ title: "Google Sign-In Successful", description: "Welcome!" });
+        // loginSuccess will be set to true. The useEffect will wait for `user` from AuthProvider.
+        setLoginSuccess(true); 
+      } else {
+        toast({ title: "Google Sign-In Failed", description: profileResult.error || "Could not complete Google Sign-In.", variant: "destructive" });
+      }
+    } catch (error: any) {
+      setIsGoogleLoading(false);
+      let errorMessage = "Could not sign in with Google.";
+      if (error.code === 'auth/popup-closed-by-user') {
+        errorMessage = "Sign-in popup closed. Please try again.";
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        errorMessage = "Sign-in popup request cancelled. Please try again.";
+      } else if (error.code === 'auth/popup-blocked') {
+        errorMessage = "Sign-in popup was blocked by the browser. Please allow popups for this site.";
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
+        errorMessage = "An account already exists with this email using a different sign-in method.";
+      }
+      toast({ title: "Google Sign-In Failed", description: error.message || errorMessage, variant: "destructive" });
     }
   }
 

@@ -1,16 +1,16 @@
 
 "use server";
 
-import { auth, db, googleProvider } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase'; // googleProvider is not used directly in server actions anymore for popup
 import type { LoginFormData, RegisterFormData } from '@/lib/validators';
 import type { UserProfile } from '@/types';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, signOut, updateProfile as updateFirebaseProfile } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile as updateFirebaseProfile } from 'firebase/auth';
 import { doc, serverTimestamp, setDoc, getDoc, type Timestamp } from 'firebase/firestore';
 
+// This function creates the profile in Firestore and returns a client-friendly UserProfile object
 async function createUserProfile(userId: string, email: string, displayName?: string, photoURL?: string): Promise<UserProfile> {
   const userDocRef = doc(db, 'users', userId);
   
-  // Data to be stored in Firestore (with serverTimestamps)
   const profileDataForFirestore = {
     uid: userId,
     email,
@@ -26,7 +26,6 @@ async function createUserProfile(userId: string, email: string, displayName?: st
   };
   await setDoc(userDocRef, profileDataForFirestore);
 
-  // Data to be returned to client (with ISO strings for dates)
   const now = new Date().toISOString();
   return {
     uid: userId,
@@ -43,35 +42,35 @@ async function createUserProfile(userId: string, email: string, displayName?: st
   };
 }
 
+// This function serializes a Firestore document and authenticated user data into a client-friendly UserProfile object
+function serializeProfile(firestoreData: any, authUserData: { uid: string; email: string | null; displayName?: string | null; photoURL?: string | null; }): UserProfile {
+  const createdAtTimestamp = firestoreData.createdAt as Timestamp | undefined;
+  const updatedAtTimestamp = firestoreData.updatedAt as Timestamp | undefined;
+  return {
+    uid: authUserData.uid,
+    email: authUserData.email,
+    displayName: firestoreData.displayName || authUserData.displayName || null,
+    photoURL: firestoreData.photoURL || authUserData.photoURL || null,
+    bio: firestoreData.bio || '',
+    germanLevel: firestoreData.germanLevel || null,
+    isLookingForMatch: firestoreData.isLookingForMatch || false,
+    currentMatchId: firestoreData.currentMatchId || null,
+    createdAt: createdAtTimestamp?.toDate().toISOString() || new Date().toISOString(),
+    updatedAt: updatedAtTimestamp?.toDate().toISOString() || new Date().toISOString(),
+    fcmTokens: firestoreData.fcmTokens || [],
+  };
+}
+
 export async function signUpWithEmail(data: RegisterFormData) {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
     const user = userCredential.user;
     await updateFirebaseProfile(user, { displayName: data.displayName });
-    // createUserProfile now returns a UserProfile with ISO date strings
-    const profile = await createUserProfile(user.uid, user.email!, data.displayName, user.photoURL);
+    const profile = await createUserProfile(user.uid, user.email!, data.displayName, user.photoURL || undefined);
     return { success: true, userId: user.uid, profile };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
-}
-
-function serializeProfile(data: any, user: { uid: string; email: string | null; displayName?: string | null; photoURL?: string | null; }): UserProfile {
-  const createdAtTimestamp = data.createdAt as Timestamp | undefined;
-  const updatedAtTimestamp = data.updatedAt as Timestamp | undefined;
-  return {
-    uid: user.uid, // Use authenticated user's UID
-    email: user.email, // Use authenticated user's email
-    displayName: data.displayName || user.displayName || null,
-    photoURL: data.photoURL || user.photoURL || null,
-    bio: data.bio || '',
-    germanLevel: data.germanLevel || null,
-    isLookingForMatch: data.isLookingForMatch || false,
-    currentMatchId: data.currentMatchId || null,
-    createdAt: createdAtTimestamp?.toDate().toISOString() || new Date().toISOString(),
-    updatedAt: updatedAtTimestamp?.toDate().toISOString() || new Date().toISOString(),
-    fcmTokens: data.fcmTokens || [],
-  };
 }
 
 export async function signInWithEmail(data: LoginFormData) {
@@ -85,6 +84,8 @@ export async function signInWithEmail(data: LoginFormData) {
     if (userDoc.exists()) {
       profile = serializeProfile(userDoc.data(), user);
     } else {
+      // This case should ideally not happen if sign-up always creates a profile.
+      // However, as a fallback, create one.
       profile = await createUserProfile(user.uid, user.email!, user.displayName || undefined, user.photoURL || undefined);
     }
     return { success: true, userId: user.uid, profile };
@@ -93,22 +94,24 @@ export async function signInWithEmail(data: LoginFormData) {
   }
 }
 
-export async function signInWithGoogle() {
+// New Server Action to handle user data after client-side Google Sign-In
+export async function handleGoogleUser(userData: { uid: string; email: string | null; displayName?: string | null; photoURL?: string | null; }) {
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    const user = result.user;
-    const userDocRef = doc(db, 'users', user.uid);
+    const userDocRef = doc(db, 'users', userData.uid);
     const userDoc = await getDoc(userDocRef);
     let profile: UserProfile;
 
     if (userDoc.exists()) {
-      profile = serializeProfile(userDoc.data(), user);
+      // User profile exists, serialize and return it
+      profile = serializeProfile(userDoc.data(), userData);
     } else {
-      profile = await createUserProfile(user.uid, user.email!, user.displayName || undefined, user.photoURL || undefined);
+      // User profile doesn't exist, create it
+      profile = await createUserProfile(userData.uid, userData.email!, userData.displayName || undefined, userData.photoURL || undefined);
     }
-    return { success: true, userId: user.uid, profile };
+    return { success: true, userId: userData.uid, profile };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error("Error in handleGoogleUser:", error);
+    return { success: false, error: error.message || "Failed to process Google user data." };
   }
 }
 
