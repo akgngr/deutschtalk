@@ -10,16 +10,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { signInWithEmail, handleGoogleUser } from '@/app/actions/auth'; // Updated import
+import { signInWithEmail, handleGoogleUser } from '@/app/actions/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { auth, googleProvider } from '@/lib/firebase'; // Import auth and googleProvider for client-side Google Sign-In
-import { signInWithPopup, type UserCredential } from 'firebase/auth'; // Import signInWithPopup
+import { auth, googleProvider } from '@/lib/firebase'; 
+import { signInWithPopup, type UserCredential } from 'firebase/auth'; 
 
-// Simple SVG for Google icon
 const GoogleIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="24px" height="24px">
     <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
@@ -34,7 +33,7 @@ const GoogleIcon = () => (
 export function LoginForm() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user } = useAuth(); // useAuth will be updated by FirebaseAuthProvider on successful sign-in
+  const { user, initialLoading } = useAuth(); 
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [loginSuccess, setLoginSuccess] = useState(false);
@@ -48,10 +47,10 @@ export function LoginForm() {
   });
 
   useEffect(() => {
-    if (loginSuccess && user) { // user comes from useAuth() context
+    if (!initialLoading && user && loginSuccess) { 
       router.push('/dashboard');
     }
-  }, [loginSuccess, user, router]);
+  }, [loginSuccess, user, initialLoading, router]);
 
   async function onSubmit(data: LoginFormData) {
     setIsLoading(true);
@@ -60,7 +59,7 @@ export function LoginForm() {
     setIsLoading(false);
     if (result.success) {
       toast({ title: "Login Successful", description: "Welcome back!" });
-      setLoginSuccess(true); // This will trigger useEffect when user context updates
+      setLoginSuccess(true); 
     } else {
       toast({ title: "Login Failed", description: result.error || "An unknown error occurred.", variant: "destructive" });
     }
@@ -73,7 +72,6 @@ export function LoginForm() {
       const result: UserCredential = await signInWithPopup(auth, googleProvider);
       const firebaseUser = result.user;
       
-      // Call the server action to ensure profile exists and get it (which might trigger context update)
       const profileResult = await handleGoogleUser({
         uid: firebaseUser.uid,
         email: firebaseUser.email,
@@ -82,12 +80,15 @@ export function LoginForm() {
       });
 
       setIsGoogleLoading(false);
-      if (profileResult.success) {
+      if (profileResult && profileResult.success) {
         toast({ title: "Google Sign-In Successful", description: "Welcome!" });
-        // loginSuccess will be set to true. The useEffect will wait for `user` from AuthProvider.
         setLoginSuccess(true); 
       } else {
-        toast({ title: "Google Sign-In Failed", description: profileResult.error || "Could not complete Google Sign-In.", variant: "destructive" });
+        toast({ 
+          title: "Google Sign-In Failed", 
+          description: (profileResult && profileResult.error) || "Could not complete Google Sign-In.", 
+          variant: "destructive" 
+        });
       }
     } catch (error: any) {
       setIsGoogleLoading(false);
@@ -104,6 +105,23 @@ export function LoginForm() {
       toast({ title: "Google Sign-In Failed", description: error.message || errorMessage, variant: "destructive" });
     }
   }
+  
+  useEffect(() => {
+    // This effect handles redirection if user is already logged in when page loads
+    if (!initialLoading && user && !loginSuccess) { // Added !loginSuccess to prevent double redirect
+      router.replace('/dashboard');
+    }
+  }, [user, initialLoading, router, loginSuccess]);
+
+
+  if (initialLoading || (!initialLoading && user && !loginSuccess)) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
 
   return (
     <Card className="w-full shadow-xl">

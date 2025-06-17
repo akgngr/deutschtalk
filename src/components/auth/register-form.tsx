@@ -10,16 +10,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { signUpWithEmail, handleGoogleUser } from '@/app/actions/auth'; // Updated import
+import { signUpWithEmail, handleGoogleUser } from '@/app/actions/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { auth, googleProvider } from '@/lib/firebase'; // Import auth and googleProvider for client-side Google Sign-In
-import { signInWithPopup, type UserCredential } from 'firebase/auth'; // Import signInWithPopup
+import { auth, googleProvider } from '@/lib/firebase'; 
+import { signInWithPopup, type UserCredential } from 'firebase/auth'; 
 
-// Simple SVG for Google icon
 const GoogleIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="24px" height="24px">
     <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
@@ -33,7 +32,7 @@ const GoogleIcon = () => (
 export function RegisterForm() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user } = useAuth(); // useAuth will be updated by FirebaseAuthProvider on successful sign-up
+  const { user, initialLoading } = useAuth(); 
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [registerSuccess, setRegisterSuccess] = useState(false);
@@ -49,10 +48,10 @@ export function RegisterForm() {
   });
 
   useEffect(() => {
-    if (registerSuccess && user) { // user comes from useAuth() context
+    if (!initialLoading && user && registerSuccess) { 
       router.push('/dashboard');
     }
-  }, [registerSuccess, user, router]);
+  }, [registerSuccess, user, initialLoading, router]);
 
   async function onSubmit(data: RegisterFormData) {
     setIsLoading(true);
@@ -61,7 +60,7 @@ export function RegisterForm() {
     setIsLoading(false);
     if (result.success) {
       toast({ title: "Registration Successful", description: "Welcome to DeutschTalk!" });
-      setRegisterSuccess(true); // This will trigger useEffect when user context updates
+      setRegisterSuccess(true); 
     } else {
       toast({ title: "Registration Failed", description: result.error || "An unknown error occurred.", variant: "destructive" });
     }
@@ -82,11 +81,15 @@ export function RegisterForm() {
       });
       
       setIsGoogleLoading(false);
-      if (profileResult.success) {
+      if (profileResult && profileResult.success) {
         toast({ title: "Google Sign-Up Successful", description: "Welcome to DeutschTalk!" });
-        setRegisterSuccess(true); // This will trigger useEffect when user context updates
+        setRegisterSuccess(true); 
       } else {
-        toast({ title: "Google Sign-Up Failed", description: profileResult.error || "Could not complete Google Sign-Up.", variant: "destructive" });
+        toast({ 
+          title: "Google Sign-Up Failed", 
+          description: (profileResult && profileResult.error) || "Could not complete Google Sign-Up.", 
+          variant: "destructive" 
+        });
       }
     } catch (error: any) {
       setIsGoogleLoading(false);
@@ -102,6 +105,21 @@ export function RegisterForm() {
       }
       toast({ title: "Google Sign-Up Failed", description: error.message || errorMessage, variant: "destructive" });
     }
+  }
+
+  useEffect(() => {
+    // This effect handles redirection if user is already logged in when page loads
+    if (!initialLoading && user && !registerSuccess) { // Added !registerSuccess to prevent double redirect
+      router.replace('/dashboard');
+    }
+  }, [user, initialLoading, router, registerSuccess]);
+
+  if (initialLoading || (!initialLoading && user && !registerSuccess)) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
   }
 
   return (
