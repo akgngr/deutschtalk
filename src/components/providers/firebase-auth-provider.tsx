@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '@/lib/firebase';
 import type { UserProfile } from '@/types';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, type Timestamp } from 'firebase/firestore'; // Import Timestamp for conversion
 import { Loader2 } from 'lucide-react';
 
 interface FirebaseAuthContextType {
@@ -34,9 +34,25 @@ export const FirebaseAuthProvider = ({ children }: { children: ReactNode }) => {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         const unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
-            setUserProfile(docSnap.data() as UserProfile);
+            const data = docSnap.data();
+            // Convert Firestore Timestamps to ISO strings
+            const createdAtTimestamp = data.createdAt as Timestamp | undefined;
+            const updatedAtTimestamp = data.updatedAt as Timestamp | undefined;
+
+            setUserProfile({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: data.displayName || firebaseUser.displayName || null,
+              photoURL: data.photoURL || firebaseUser.photoURL || null,
+              bio: data.bio || '',
+              germanLevel: data.germanLevel || null,
+              isLookingForMatch: data.isLookingForMatch || false,
+              currentMatchId: data.currentMatchId || null,
+              createdAt: createdAtTimestamp?.toDate().toISOString() || new Date().toISOString(),
+              updatedAt: updatedAtTimestamp?.toDate().toISOString() || new Date().toISOString(),
+              fcmTokens: data.fcmTokens || [],
+            });
           } else {
-            // Handle case where user exists in Auth but not Firestore (e.g., incomplete registration)
             setUserProfile(null); 
           }
           setLoading(false); // Profile loaded (or confirmed not to exist)

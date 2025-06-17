@@ -4,7 +4,7 @@
 import { auth, db, storage } from '@/lib/firebase';
 import type { ProfileUpdateFormData } from '@/lib/validators';
 import type { UserProfile } from '@/types';
-import { doc, serverTimestamp, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, updateDoc, getDoc, type Timestamp } from 'firebase/firestore'; // Import Timestamp
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { updateProfile as updateFirebaseProfile } from 'firebase/auth';
 
@@ -15,29 +15,47 @@ export async function updateUserProfile(userId: string, data: ProfileUpdateFormD
 
   try {
     const userDocRef = doc(db, 'users', userId);
-    const updateData: Partial<UserProfile> = {
-      updatedAt: serverTimestamp() as any,
+    // Data for Firestore update
+    const updateDataForFirestore: any = { // Use 'any' temporarily for serverTimestamp
+      updatedAt: serverTimestamp(),
     };
 
     if (data.displayName) {
-      updateData.displayName = data.displayName;
-      // Also update Firebase Auth profile if it's the current user
+      updateDataForFirestore.displayName = data.displayName;
       if (auth.currentUser && auth.currentUser.uid === userId) {
         await updateFirebaseProfile(auth.currentUser, { displayName: data.displayName });
       }
     }
-    if (data.bio !== undefined) { // Check for undefined to allow clearing bio
-      updateData.bio = data.bio;
+    if (data.bio !== undefined) {
+      updateDataForFirestore.bio = data.bio;
     }
-    if (data.germanLevel !== undefined) { // Check for undefined to allow clearing level
-      updateData.germanLevel = data.germanLevel;
+    if (data.germanLevel !== undefined) {
+      updateDataForFirestore.germanLevel = data.germanLevel;
     }
     
-    await updateDoc(userDocRef, updateData);
+    await updateDoc(userDocRef, updateDataForFirestore);
     
-    // Fetch the updated profile to return
-    const updatedDoc = await getDoc(userDocRef);
-    const updatedProfile = updatedDoc.data() as UserProfile;
+    const updatedDocSnap = await getDoc(userDocRef);
+    if (!updatedDocSnap.exists()) {
+        throw new Error("User profile not found after update.");
+    }
+    const docData = updatedDocSnap.data();
+    const createdAtTimestamp = docData.createdAt as Timestamp | undefined;
+    const updatedAtTimestamp = docData.updatedAt as Timestamp | undefined;
+
+    const updatedProfile: UserProfile = {
+      uid: userId,
+      email: docData.email || auth.currentUser?.email || null, // Get email from docData or auth
+      displayName: docData.displayName || null,
+      photoURL: docData.photoURL || null,
+      bio: docData.bio || '',
+      germanLevel: docData.germanLevel || null,
+      isLookingForMatch: docData.isLookingForMatch || false,
+      currentMatchId: docData.currentMatchId || null,
+      createdAt: createdAtTimestamp?.toDate().toISOString() || new Date().toISOString(),
+      updatedAt: updatedAtTimestamp?.toDate().toISOString() || new Date().toISOString(),
+      fcmTokens: docData.fcmTokens || [],
+    };
 
     return { success: true, profile: updatedProfile };
   } catch (error: any) {
@@ -63,15 +81,13 @@ export async function updateUserProfilePicture(userId: string, file: File) {
     if (!userDoc.exists()) {
       return { success: false, error: "User profile not found." };
     }
-    const userProfile = userDoc.data() as UserProfile;
+    const userProfileData = userDoc.data();
 
-    // Delete old photo if it exists
-    if (userProfile.photoURL) {
+    if (userProfileData.photoURL) {
       try {
-        const oldPhotoRef = ref(storage, userProfile.photoURL);
+        const oldPhotoRef = ref(storage, userProfileData.photoURL);
         await deleteObject(oldPhotoRef);
       } catch (deleteError: any) {
-        // Ignore if old photo doesn't exist or other deletion error, proceed with upload
         if (deleteError.code !== 'storage/object-not-found') {
             console.warn("Could not delete old profile picture:", deleteError);
         }
@@ -84,10 +100,9 @@ export async function updateUserProfilePicture(userId: string, file: File) {
 
     await updateDoc(userDocRef, { 
       photoURL: photoURL,
-      updatedAt: serverTimestamp() as any,
+      updatedAt: serverTimestamp(), // Firestore serverTimestamp
     });
     
-    // Also update Firebase Auth profile if it's the current user
     if (auth.currentUser && auth.currentUser.uid === userId) {
       await updateFirebaseProfile(auth.currentUser, { photoURL: photoURL });
     }
