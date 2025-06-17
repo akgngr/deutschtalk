@@ -59,20 +59,27 @@ const googleProvider = new GoogleAuthProvider();
 
 // Setup emulators if running in development
 // Important: Ensure these are not run in production
-if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
-  // Check if already connected to avoid re-connecting (HMR can cause this)
-  // Note: Firebase SDK doesn't provide a direct way to check if emulator is connected.
-  // This is a simple guard. For robust HMR, manage connection state.
-  // For now, we assume they are not connected on first load in dev.
-  // try {
-  //   connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
-  //   connectFirestoreEmulator(db, 'localhost', 8080);
-  //   connectStorageEmulator(storage, 'localhost', 9199);
-  //   console.log("Firebase Emulators connected for development.");
-  // } catch (error) {
-  //   console.warn("Error connecting to Firebase emulators. They might already be connected or not running.", error);
-  // }
+if (process.env.NODE_ENV === 'development') {
+  // Check if running in a browser environment before connecting client-side emulators
+  if (typeof window !== 'undefined') {
+    // Check if emulators are already connected to avoid re-connecting during HMR.
+    // Firebase SDK doesn't offer a direct way to check, so this is a simple guard.
+    // A more robust solution might involve a global flag.
+    // @ts-ignore // Accessing private _isInitialized property for a pragmatic check
+    if (!auth.emulatorConfig) { 
+      try {
+        console.log("Connecting to Firebase Emulators for development...");
+        connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+        connectFirestoreEmulator(db, 'localhost', 8080);
+        connectStorageEmulator(storage, 'localhost', 9199);
+        console.log("Firebase Emulators connected successfully.");
+      } catch (error) {
+        console.warn("Error connecting to Firebase emulators. They might already be connected or not running.", error);
+      }
+    }
+  }
 }
 
 
 export { app, auth, db, storage, googleProvider };
+

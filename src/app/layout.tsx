@@ -36,12 +36,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Additional Google Fonts links if needed, but next/font is preferred */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* Poppins and PT Sans are loaded via next/font, so explicit links are not strictly necessary here but kept as per original template guideline. */}
-        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-        <link href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap" rel="stylesheet" />
+        {/* next/font handles optimized font loading. Explicit links previously here were redundant. */}
       </head>
       <body className={cn(
         "min-h-screen bg-background font-body antialiased",
