@@ -62,43 +62,43 @@ let emulatorsConnectionAttempted = false;
 if (process.env.NODE_ENV === 'development') {
   try {
     if (!emulatorsConnectionAttempted) {
-      console.log("[Firebase/Dev] Attempting to connect to Firebase Emulators...");
+      console.log("[Firebase/Dev] Attempting to configure Firebase Emulators (if not already configured)...");
       
       // @ts-ignore - Check internal emulatorConfig to see if already connected by this instance
-      if (!auth.emulatorConfig) {
+      if (!auth.emulatorConfig) { 
         connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
         console.log("[Firebase/Dev] Auth emulator connection configured for http://localhost:9099");
       } else {
-        console.log("[Firebase/Dev] Auth emulator already configured or connected.");
+        console.log("[Firebase/Dev] Auth emulator already appears to be configured or connected.");
       }
       
-      // @ts-ignore - _settings can indicate emulator connection for Firestore
-      if (!db['_settings'] || !db['_settings'].host?.includes('localhost')) {
+      const firestoreInstance = db as any;
+      if (!firestoreInstance._settings?.host?.includes('localhost')) {
          connectFirestoreEmulator(db, 'localhost', 8080);
          console.log("[Firebase/Dev] Firestore emulator connection configured for localhost:8080");
       } else {
-        console.log("[Firebase/Dev] Firestore emulator already configured or connected.");
+        console.log("[Firebase/Dev] Firestore emulator already appears to be configured or connected with host: " + firestoreInstance._settings?.host);
       }
       
-      // @ts-ignore - Check internal _protocol or a similar heuristic for Storage
-      if (!storage['_protocol']?.includes('http:')) { // Live uses https, emulator typically http
+      const storageInstance = storage as any;
+      if (!storageInstance._service?.host?.includes('localhost')) {
         connectStorageEmulator(storage, 'localhost', 9199);
         console.log("[Firebase/Dev] Storage emulator connection configured for localhost:9199");
       } else {
-        console.log("[Firebase/Dev] Storage emulator already configured or connected.");
+        console.log("[Firebase/Dev] Storage emulator already appears to be configured or connected with host: " + storageInstance._service?.host);
       }
       
-      console.log("[Firebase/Dev] Firebase Emulators connection attempts complete. If emulators are running, they should now be connected.");
+      console.log("[Firebase/Dev] Firebase Emulators configuration attempts complete. If emulators are running on default ports (Auth:9099, Firestore:8080, Storage:9199), they should now be connected.");
       emulatorsConnectionAttempted = true;
     }
   } catch (error: any) {
     console.warn(
         "[Firebase/Dev] Warning: Error attempting to connect to Firebase emulators. " +
-        "This might be expected if emulators are not running. " +
-        "The application will attempt to connect to live Firebase services. Details:",
+        "This is often because the emulators are not running or are not reachable at their default ports (Auth: http://localhost:9099, Firestore: localhost:8080, Storage: localhost:9199). " +
+        "Please ensure your Firebase emulators are started (e.g., using 'firebase emulators:start') and accessible. " +
+        "If emulators are not running, the application will attempt to connect to live Firebase services, which might also lead to network errors if not configured or if there's no internet. Original error details:",
         error.message
     );
-    // Still set to true to prevent repeated attempts in the same session even if one fails
     emulatorsConnectionAttempted = true; 
   }
 }
