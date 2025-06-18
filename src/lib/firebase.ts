@@ -60,6 +60,7 @@ const googleProvider = new GoogleAuthProvider();
 let emulatorsConnectionAttempted = false;
 
 if (process.env.NODE_ENV === 'development') {
+  console.log(`[Firebase/Dev] NODE_ENV is '${process.env.NODE_ENV}'. Attempting emulator connection logic.`); // Diagnostic log
   try {
     if (!emulatorsConnectionAttempted) {
       console.log("[Firebase/Dev] Attempting to configure Firebase Emulators (if not already configured)...");
