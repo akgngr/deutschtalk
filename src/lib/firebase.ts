@@ -56,38 +56,50 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
 
+// Module-scoped flag to track if emulator connection has been attempted
+let emulatorsConnectionAttempted = false;
+
 if (process.env.NODE_ENV === 'development') {
-  // Ensure this block runs for both client and server-side evaluations in dev.
-  // The Firebase SDK methods for connecting to emulators are typically idempotent.
-  // Using a global flag to prevent multiple connection logs from HMR on client or multiple server action calls.
   try {
-    // @ts-ignore - Check if a global flag is set to avoid re-logging connection attempts excessively
-    if (!globalThis._firebaseEmulatorsConnectedAttempted) {
-      console.log("Attempting to connect to Firebase Emulators for development...");
+    if (!emulatorsConnectionAttempted) {
+      console.log("[Firebase/Dev] Attempting to connect to Firebase Emulators...");
       
       // @ts-ignore - Check internal emulatorConfig to see if already connected by this instance
       if (!auth.emulatorConfig) {
         connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+        console.log("[Firebase/Dev] Auth emulator connection configured for http://localhost:9099");
+      } else {
+        console.log("[Firebase/Dev] Auth emulator already configured or connected.");
       }
+      
       // @ts-ignore - _settings can indicate emulator connection for Firestore
       if (!db['_settings'] || !db['_settings'].host?.includes('localhost')) {
          connectFirestoreEmulator(db, 'localhost', 8080);
+         console.log("[Firebase/Dev] Firestore emulator connection configured for localhost:8080");
+      } else {
+        console.log("[Firebase/Dev] Firestore emulator already configured or connected.");
       }
+      
       // @ts-ignore - Check internal _protocol or a similar heuristic for Storage
       if (!storage['_protocol']?.includes('http:')) { // Live uses https, emulator typically http
         connectStorageEmulator(storage, 'localhost', 9199);
+        console.log("[Firebase/Dev] Storage emulator connection configured for localhost:9199");
+      } else {
+        console.log("[Firebase/Dev] Storage emulator already configured or connected.");
       }
-      console.log("Firebase Emulators connection attempts complete. If emulators are running, they should be connected.");
-      // @ts-ignore - Set the global flag
-      globalThis._firebaseEmulatorsConnectedAttempted = true;
+      
+      console.log("[Firebase/Dev] Firebase Emulators connection attempts complete. If emulators are running, they should now be connected.");
+      emulatorsConnectionAttempted = true;
     }
-  } catch (error) {
+  } catch (error: any) {
     console.warn(
-        "Warning: Error attempting to connect to Firebase emulators. " +
+        "[Firebase/Dev] Warning: Error attempting to connect to Firebase emulators. " +
         "This might be expected if emulators are not running. " +
         "The application will attempt to connect to live Firebase services. Details:",
-        error
+        error.message
     );
+    // Still set to true to prevent repeated attempts in the same session even if one fails
+    emulatorsConnectionAttempted = true; 
   }
 }
 
