@@ -16,6 +16,7 @@ import { leaveMatch } from '@/app/actions/matching';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import { cn } from '@/lib/utils';
 
 interface ChatAreaProps {
   matchId: string;
