@@ -69,7 +69,22 @@ export async function signUpWithEmail(data: RegisterFormData) {
     const profile = await createUserProfile(user.uid, user.email!, data.displayName, user.photoURL || undefined);
     return { success: true, userId: user.uid, profile };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    let errorMessage = "An unknown error occurred during registration.";
+    switch (error.code) {
+      case 'auth/email-already-in-use':
+        errorMessage = "An account with this email address already exists.";
+        break;
+      case 'auth/invalid-email':
+        errorMessage = "The email address is not valid.";
+        break;
+      case 'auth/weak-password':
+        errorMessage = "The password is too weak. Please choose a stronger password.";
+        break;
+      default:
+        errorMessage = error.message || errorMessage;
+        break;
+    }
+    return { success: false, error: errorMessage };
   }
 }
 
@@ -84,13 +99,31 @@ export async function signInWithEmail(data: LoginFormData) {
     if (userDoc.exists()) {
       profile = serializeProfile(userDoc.data(), user);
     } else {
-      // This case should ideally not happen if sign-up always creates a profile.
-      // However, as a fallback, create one.
       profile = await createUserProfile(user.uid, user.email!, user.displayName || undefined, user.photoURL || undefined);
     }
     return { success: true, userId: user.uid, profile };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    let errorMessage = "An unknown error occurred during sign-in.";
+    switch (error.code) {
+      case 'auth/user-not-found':
+      case 'auth/wrong-password':
+      case 'auth/invalid-credential':
+        errorMessage = "Invalid email or password. Please try again.";
+        break;
+      case 'auth/invalid-email':
+        errorMessage = "The email address is not valid.";
+        break;
+      case 'auth/user-disabled':
+        errorMessage = "This user account has been disabled.";
+        break;
+      case 'auth/too-many-requests':
+         errorMessage = "Access to this account has been temporarily disabled due to many failed login attempts. You can try again later.";
+        break;
+      default:
+        errorMessage = error.message || errorMessage;
+        break;
+    }
+    return { success: false, error: errorMessage };
   }
 }
 
