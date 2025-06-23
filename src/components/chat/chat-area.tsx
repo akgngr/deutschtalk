@@ -9,7 +9,7 @@ import { db } from '@/lib/firebase';
 import { MessageInput } from './message-input';
 import { MessageItem } from './message-item';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, ArrowLeft, Info, Loader2, Users } from 'lucide-react';
+import { AlertCircle, MessageSquare, ArrowLeft, Info, Loader2, Users } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useRouter } from 'next/navigation';
 import { leaveMatch } from '@/app/actions/matching';
