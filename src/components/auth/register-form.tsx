@@ -1,8 +1,6 @@
-
 "use client";
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import type { RegisterFormData } from '@/lib/validators';
 import { RegisterSchema } from '@/lib/validators';
@@ -12,8 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { signUpWithEmail, handleGoogleUser } from '@/app/actions/auth';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/use-auth';
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { auth, googleProvider } from '@/lib/firebase'; 
@@ -30,12 +27,9 @@ const GoogleIcon = () => (
 );
 
 export function RegisterForm() {
-  const router = useRouter();
   const { toast } = useToast();
-  const { user, initialLoading } = useAuth(); 
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [registerSuccess, setRegisterSuccess] = useState(false);
 
   const form = useForm<RegisterFormData>({
     resolver: zodResolver(RegisterSchema),
@@ -47,20 +41,13 @@ export function RegisterForm() {
     },
   });
 
-  useEffect(() => {
-    if (!initialLoading && user && registerSuccess) { 
-      router.push('/dashboard');
-    }
-  }, [registerSuccess, user, initialLoading, router]);
-
   async function onSubmit(data: RegisterFormData) {
     setIsLoading(true);
-    setRegisterSuccess(false);
     const result = await signUpWithEmail(data);
     setIsLoading(false);
     if (result.success) {
-      toast({ title: "Registration Successful", description: "Welcome to DeutschTalk!" });
-      setRegisterSuccess(true); 
+      toast({ title: "Registration Successful", description: "Welcome to DeutschTalk! Redirecting..." });
+      // Redirection is handled by the parent RegisterPage based on auth state change.
     } else {
       toast({ title: "Registration Failed", description: result.error || "An unknown error occurred.", variant: "destructive" });
     }
@@ -68,7 +55,6 @@ export function RegisterForm() {
   
   async function handleGoogleSignIn() {
     setIsGoogleLoading(true);
-    setRegisterSuccess(false);
     try {
       const result: UserCredential = await signInWithPopup(auth, googleProvider);
       const firebaseUser = result.user;
@@ -82,8 +68,8 @@ export function RegisterForm() {
       
       setIsGoogleLoading(false);
       if (profileResult && profileResult.success) {
-        toast({ title: "Google Sign-Up Successful", description: "Welcome to DeutschTalk!" });
-        setRegisterSuccess(true); 
+        toast({ title: "Google Sign-Up Successful", description: "Welcome to DeutschTalk! Redirecting..." });
+        // Redirection is handled by the parent RegisterPage based on auth state change.
       } else {
         toast({ 
           title: "Google Sign-Up Failed", 
@@ -105,21 +91,6 @@ export function RegisterForm() {
       }
       toast({ title: "Google Sign-Up Failed", description: error.message || errorMessage, variant: "destructive" });
     }
-  }
-
-  useEffect(() => {
-    // This effect handles redirection if user is already logged in when page loads
-    if (!initialLoading && user && !registerSuccess) { // Added !registerSuccess to prevent double redirect
-      router.replace('/dashboard');
-    }
-  }, [user, initialLoading, router, registerSuccess]);
-
-  if (initialLoading || (!initialLoading && user && !registerSuccess)) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    );
   }
 
   return (

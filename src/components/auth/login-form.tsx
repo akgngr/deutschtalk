@@ -1,8 +1,6 @@
-
 "use client";
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import type { LoginFormData } from '@/lib/validators';
 import { LoginSchema } from '@/lib/validators';
@@ -12,8 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { signInWithEmail, handleGoogleUser } from '@/app/actions/auth';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/use-auth';
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { auth, googleProvider } from '@/lib/firebase'; 
@@ -31,12 +28,9 @@ const GoogleIcon = () => (
 
 
 export function LoginForm() {
-  const router = useRouter();
   const { toast } = useToast();
-  const { user, initialLoading } = useAuth(); 
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [loginSuccess, setLoginSuccess] = useState(false);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(LoginSchema),
@@ -46,20 +40,13 @@ export function LoginForm() {
     },
   });
 
-  useEffect(() => {
-    if (!initialLoading && user && loginSuccess) { 
-      router.push('/dashboard');
-    }
-  }, [loginSuccess, user, initialLoading, router]);
-
   async function onSubmit(data: LoginFormData) {
     setIsLoading(true);
-    setLoginSuccess(false);
     const result = await signInWithEmail(data);
     setIsLoading(false);
     if (result.success) {
-      toast({ title: "Login Successful", description: "Welcome back!" });
-      setLoginSuccess(true); 
+      toast({ title: "Login Successful", description: "Welcome back! Redirecting..." });
+      // Redirection is handled by the parent LoginPage based on auth state change.
     } else {
       toast({ title: "Login Failed", description: result.error || "An unknown error occurred.", variant: "destructive" });
     }
@@ -67,7 +54,6 @@ export function LoginForm() {
 
   async function handleGoogleSignIn() {
     setIsGoogleLoading(true);
-    setLoginSuccess(false);
     try {
       const result: UserCredential = await signInWithPopup(auth, googleProvider);
       const firebaseUser = result.user;
@@ -81,8 +67,8 @@ export function LoginForm() {
 
       setIsGoogleLoading(false);
       if (profileResult && profileResult.success) {
-        toast({ title: "Google Sign-In Successful", description: "Welcome!" });
-        setLoginSuccess(true); 
+        toast({ title: "Google Sign-In Successful", description: "Welcome! Redirecting..." });
+        // Redirection is handled by the parent LoginPage based on auth state change.
       } else {
         toast({ 
           title: "Google Sign-In Failed", 
@@ -106,23 +92,6 @@ export function LoginForm() {
     }
   }
   
-  useEffect(() => {
-    // This effect handles redirection if user is already logged in when page loads
-    if (!initialLoading && user && !loginSuccess) { // Added !loginSuccess to prevent double redirect
-      router.replace('/dashboard');
-    }
-  }, [user, initialLoading, router, loginSuccess]);
-
-
-  if (initialLoading || (!initialLoading && user && !loginSuccess)) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-
   return (
     <Card className="w-full shadow-xl">
       <CardHeader>
