@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '@/lib/firebase';
 import type { UserProfile } from '@/types';
-import { doc, onSnapshot, type Timestamp } from 'firebase/firestore'; // Import Timestamp for conversion
+import { doc, onSnapshot, type Timestamp, type Unsubscribe } from 'firebase/firestore'; 
 import { Loader2 } from 'lucide-react';
 
 interface FirebaseAuthContextType {
@@ -26,16 +26,23 @@ export const FirebaseAuthProvider = ({ children }: { children: ReactNode }) => {
   const [initialLoading, setInitialLoading] = useState(true); // Specific for auth state
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+    let unsubscribeProfile: Unsubscribe = () => {};
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      // First, clean up any existing profile listener from the previous auth state
+      unsubscribeProfile();
+
       setUser(firebaseUser);
-      setInitialLoading(false); // Auth state determined
+      setInitialLoading(false);
+
       if (firebaseUser) {
-        setLoading(true); // Start loading profile
+        setLoading(true);
         const userDocRef = doc(db, 'users', firebaseUser.uid);
-        const unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
+        
+        // Assign the new snapshot listener's unsubscribe function
+        unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
-            // Convert Firestore Timestamps to ISO strings
             const createdAtTimestamp = data.createdAt as Timestamp | undefined;
             const updatedAtTimestamp = data.updatedAt as Timestamp | undefined;
 
@@ -56,20 +63,23 @@ export const FirebaseAuthProvider = ({ children }: { children: ReactNode }) => {
             console.warn(`UserProfile document not found in Firestore for UID: ${firebaseUser.uid}. UserProfile will be null.`);
             setUserProfile(null); 
           }
-          setLoading(false); // Profile loaded (or confirmed not to exist)
+          setLoading(false);
         }, (error) => {
           console.error("Error fetching user profile from Firestore:", error);
           setUserProfile(null);
           setLoading(false);
         });
-        return () => unsubscribeProfile();
       } else {
         setUserProfile(null);
         setLoading(false); // No user, so no profile to load
       }
     });
 
-    return () => unsubscribeAuth();
+    // Cleanup function for the main useEffect
+    return () => {
+      unsubscribeAuth();
+      unsubscribeProfile(); // Also clean up the profile listener on unmount
+    };
   }, []);
 
   return (
