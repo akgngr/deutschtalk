@@ -1,9 +1,8 @@
 
 "use client";
 
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import { MessageSchema, type MessageFormData } from '@/lib/validators';
+import type { UseFormReturn } from 'react-hook-form';
+import { type MessageFormData } from '@/lib/validators';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
@@ -14,20 +13,15 @@ import { Loader2, Send } from 'lucide-react';
 
 interface MessageInputProps {
   matchId: string;
+  form: UseFormReturn<MessageFormData>;
 }
 
-export function MessageInput({ matchId }: MessageInputProps) {
+export function MessageInput({ matchId, form }: MessageInputProps) {
   const { toast } = useToast();
   const [isSending, setIsSending] = useState(false);
 
-  const form = useForm<MessageFormData>({
-    resolver: zodResolver(MessageSchema),
-    defaultValues: {
-      text: '',
-    },
-  });
-
   async function onSubmit(data: MessageFormData) {
+    if (data.text.trim() === '') return;
     setIsSending(true);
     const result = await sendMessage(matchId, data);
     setIsSending(false);

@@ -7,6 +7,7 @@ import { MessageSchema, type MessageFormData } from '@/lib/validators';
 import { addDoc, collection, doc, serverTimestamp, updateDoc, getDoc, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { checkGerman } from '@/ai/flows/check-german-flow';
 import { correctGerman } from '@/ai/flows/correct-german-flow';
+import { suggestReplies, type SuggestRepliesInput } from '@/ai/flows/suggest-replies-flow';
 
 // Basic profanity filter (very rudimentary, for demonstration)
 const profanityList = ["badword1", "badword2", "scheisse", "arschloch"]; // Add more German/English bad words
@@ -132,4 +133,53 @@ export async function getInitialMessages(matchId: string, count: number = 20) {
         console.error("Error fetching initial messages:", error);
         return { success: false, error: error.message, messages: [] };
     }
+}
+
+export async function getSuggestedReplies(matchId: string) {
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    return { success: false, error: 'User not authenticated.' };
+  }
+
+  try {
+    // 1. Fetch the last 5 messages
+    const messagesRef = collection(db, 'matches', matchId, 'messages');
+    const q = query(messagesRef, orderBy('timestamp', 'desc'), limit(5));
+    const snapshot = await getDocs(q);
+    const messages = snapshot.docs.map(doc => doc.data() as ChatMessage).reverse(); // Oldest to newest
+
+    if (messages.length > 0) {
+      // 2. Check if the current user sent the last message
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.senderId === currentUser.uid) {
+        return { success: true, replies: [] }; // Don't suggest replies if user was the last to speak
+      }
+    }
+    
+    // 3. Fetch current user's profile to get their name
+    const userProfileSnap = await getDoc(doc(db, 'users', currentUser.uid));
+    if (!userProfileSnap.exists()) {
+        return { success: false, error: 'User profile not found.' };
+    }
+    const userProfile = userProfileSnap.data() as UserProfile;
+
+
+    // 4. Format messages for the AI flow
+    const historyForAI: SuggestRepliesInput['history'] = messages.map(msg => ({
+      sender: msg.senderDisplayName || 'User',
+      text: msg.text,
+    }));
+
+    // 5. Call the AI flow
+    const result = await suggestReplies({
+      history: historyForAI,
+      responderName: userProfile.displayName || 'Me',
+    });
+
+    return { success: true, replies: result.suggestions };
+
+  } catch (error: any) {
+    console.error('Error getting suggested replies:', error);
+    return { success: false, error: error.message, replies: [] };
+  }
 }

@@ -1,22 +1,27 @@
 
 "use client";
 
-import type { ChatMessage, Match, UserProfile } from '@/types';
+import type { ChatMessage, Match } from '@/types';
 import { useAuth } from '@/hooks/use-auth';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { collection, doc, onSnapshot, orderBy, query, limit, startAfter, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { MessageInput } from './message-input';
 import { MessageItem } from './message-item';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, MessageSquare, ArrowLeft, Info, Loader2, Users } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Info, Loader2, MessageSquare, WandSparkles } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useRouter } from 'next/navigation';
 import { leaveMatch } from '@/app/actions/matching';
+import { getSuggestedReplies } from '@/app/actions/chat';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { cn } from '@/lib/utils';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { MessageSchema, type MessageFormData } from '@/lib/validators';
+
 
 interface ChatAreaProps {
   matchId: string;
@@ -25,17 +30,26 @@ interface ChatAreaProps {
 const MESSAGES_PER_LOAD = 20;
 
 export function ChatArea({ matchId }: ChatAreaProps) {
-  const { user, userProfile } = useAuth();
+  const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [matchDetails, setMatchDetails] = useState<Match | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [isSuggesting, setIsSuggesting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { toast } = useToast();
+
+  const form = useForm<MessageFormData>({
+    resolver: zodResolver(MessageSchema),
+    defaultValues: {
+      text: '',
+    },
+  });
 
   useEffect(() => {
     if (!user || !matchId) return;
@@ -95,11 +109,24 @@ export function ChatArea({ matchId }: ChatAreaProps) {
     };
   }, [user, matchId, toast]);
 
+  useEffect(() => {
+    if (messages.length > 0) {
+      setSuggestions([]);
+    }
+  }, [messages])
+
+  const canSuggestReply = useMemo(() => {
+    if (!messages || !user) return false;
+    if (messages.length === 0) return true; // Can suggest conversation starters
+    const lastMessage = messages[messages.length - 1];
+    return lastMessage.senderId !== user.uid;
+  }, [messages, user]);
+
   const loadMoreMessages = async () => {
     if (!hasMoreMessages || isLoadingMore || messages.length === 0) return;
 
     setIsLoadingMore(true);
-    const lastVisibleMessage = messages[0]; // Oldest message currently loaded (since we reverse for display)
+    const lastVisibleMessage = messages[0]; // Oldest message currently loaded
     
     try {
       const nextMessagesQuery = query(
@@ -136,6 +163,28 @@ export function ChatArea({ matchId }: ChatAreaProps) {
         toast({ title: "Error", description: result.error || "Could not leave chat.", variant: "destructive" });
       }
     }
+  };
+
+  const handleGetSuggestions = async () => {
+    setIsSuggesting(true);
+    setSuggestions([]);
+    const result = await getSuggestedReplies(matchId);
+    setIsSuggesting(false);
+
+    if (result.success && result.replies && result.replies.length > 0) {
+      setSuggestions(result.replies);
+    } else if (!result.success) {
+      toast({
+        title: "Error",
+        description: result.error || "Could not get suggestions.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleSuggestionClick = (text: string) => {
+    form.setValue('text', text, { shouldFocus: true });
+    setSuggestions([]);
   };
   
   const partnerId = matchDetails?.participants.find(pId => pId !== user?.uid);
@@ -215,8 +264,27 @@ export function ChatArea({ matchId }: ChatAreaProps) {
         <div ref={messagesEndRef} />
       </div>
       
+       {matchDetails?.status === 'active' && (
+        <div className="p-2 border-t bg-background/80 space-y-2">
+            <div className="flex items-center gap-2 flex-wrap">
+                {isSuggesting && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+                {!isSuggesting && canSuggestReply && (
+                    <Button variant="ghost" size="sm" onClick={handleGetSuggestions} className="text-primary hover:text-primary">
+                        <WandSparkles className="mr-2 h-4 w-4" />
+                        Suggest a Reply
+                    </Button>
+                )}
+                {suggestions.map((suggestion, index) => (
+                    <Button key={index} variant="outline" size="sm" onClick={() => handleSuggestionClick(suggestion)}>
+                        {suggestion}
+                    </Button>
+                ))}
+            </div>
+        </div>
+      )}
+
       {matchDetails?.status === 'active' ? (
-        <MessageInput matchId={matchId} />
+        <MessageInput matchId={matchId} form={form} />
       ) : (
         <div className="p-4 border-t bg-muted text-center text-muted-foreground">
           <Info className="inline-block h-5 w-5 mr-2" /> This chat session has ended.
