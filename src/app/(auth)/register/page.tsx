@@ -18,13 +18,14 @@ export default function RegisterPage() {
   const router = useRouter();
 
   useEffect(() => {
+    // If auth is no longer loading and we have a user, redirect.
     if (!initialLoading && user) {
       router.replace('/dashboard');
     }
   }, [user, initialLoading, router]);
 
-  if (initialLoading || (!initialLoading && user)) {
-    // Show loader while checking auth state or if user exists and redirect is pending
+  // While checking auth state, or if user exists and we are about to redirect, show a loader.
+  if (initialLoading || user) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
