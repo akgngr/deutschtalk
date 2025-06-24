@@ -56,6 +56,10 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
 
+// The following block is commented out to force the application to use
+// live Firebase services instead of the local emulators, even in development.
+// To re-enable emulators for local development, you can uncomment this block.
+/*
 // Module-scoped flag to prevent multiple connection attempts, especially with HMR.
 let emulatorsConnected = false;
 
@@ -87,6 +91,7 @@ if (process.env.NODE_ENV === 'development') {
     }
   }
 }
+*/
 
 
 export { app, auth, db, storage, googleProvider };
